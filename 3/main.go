@@ -11,7 +11,7 @@ import (
 var mulPattern = regexp.MustCompile(`mul\(\d+,\d+\)`)
 var mulDoPattern = regexp.MustCompile(`(mul\(\d+,\d+\)|do\(\)|don\'t\(\))`)
 
-func scanString(s string) (int, error) {
+func computeSum(s string) (int, error) {
 	muls := mulDoPattern.FindAllString(s, -1)
 	total := 0
 	shouldMul := true
@@ -45,7 +45,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	output, err := scanString(string(input))
+	output, err := computeSum(string(input))
 	if err != nil {
 		panic(err)
 	}
