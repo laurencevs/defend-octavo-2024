@@ -55,11 +55,11 @@ func run() error {
 	for _, n := range list2 {
 		list2Counts[n]++
 	}
-	sim := 0
+	similarity := 0
 	for _, n := range list1 {
-		sim += n * list2Counts[n]
+		similarity += n * list2Counts[n]
 	}
-	fmt.Println(sim)
+	fmt.Println(similarity)
 	return nil
 }
 
