@@ -21,7 +21,7 @@ func main() {
 	if len(data)%2 == 1 {
 		data = append(data, 0)
 	}
-	head := new(utils.LLNode[fileData]) // dummy
+	head := new(utils.LLNode[fileData])
 	tail := head
 	for i := 0; i < len(data); i += 2 {
 		tail = tail.InsertNext(fileData{
@@ -33,10 +33,11 @@ func main() {
 	head = head.Next
 	tail.InsertNext(fileData{}) // so tail.Next.Prev exists
 
-	fmt.Println(checksum(head, tail))
+	optimiseFileMap(head, tail)
+	fmt.Println(fileMapChecksum(head))
 }
 
-func checksum(head, tail *utils.LLNode[fileData]) int {
+func optimiseFileMap(head, tail *utils.LLNode[fileData]) {
 	for fileToMove := tail; fileToMove.Prev != nil; fileToMove = fileToMove.Prev {
 		for candidateSpace := head; candidateSpace.Value.id != fileToMove.Value.id; candidateSpace = candidateSpace.Next {
 			if candidateSpace.Value.spaceAfter >= fileToMove.Value.length {
@@ -52,13 +53,13 @@ func checksum(head, tail *utils.LLNode[fileData]) int {
 			}
 		}
 	}
+}
 
-	total := 0
+func fileMapChecksum(head *utils.LLNode[fileData]) (total int) {
 	position := 0
 	for file := head; file != nil; file = file.Next {
 		total += file.Value.id * (2*position + file.Value.length - 1) * file.Value.length / 2
 		position += file.Value.length + file.Value.spaceAfter
 	}
-
-	return total
+	return
 }
