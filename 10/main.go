@@ -12,8 +12,10 @@ func main() {
 		panic(err)
 	}
 	coordsByHeight, topographicMap := parseData(data)
-	fmt.Println(countTrails(coordsByHeight, topographicMap))
-	fmt.Println(countDistinctTrails(coordsByHeight, topographicMap))
+
+	total, uniqueTotal := countTrails(coordsByHeight, topographicMap)
+	fmt.Println(total)
+	fmt.Println(uniqueTotal)
 }
 
 type coord struct {
@@ -37,59 +39,38 @@ func parseData(data []byte) ([10][]coord, map[coord]int) {
 	return coordsByHeight, topographicMap
 }
 
-func countDistinctTrails(coordsByHeight [10][]coord, topographicMap map[coord]int) int {
-	trailCountMap := make(map[coord]int, len(topographicMap))
-	for _, c := range coordsByHeight[9] {
-		trailCountMap[c] = 1
-	}
-	for h := 8; h >= 0; h-- {
-		for _, c := range coordsByHeight[h] {
-			if topographicMap[coord{c.y + 1, c.x}] == h+1 {
-				trailCountMap[c] += trailCountMap[coord{c.y + 1, c.x}]
-			}
-			if topographicMap[coord{c.y - 1, c.x}] == h+1 {
-				trailCountMap[c] += trailCountMap[coord{c.y - 1, c.x}]
-			}
-			if topographicMap[coord{c.y, c.x + 1}] == h+1 {
-				trailCountMap[c] += trailCountMap[coord{c.y, c.x + 1}]
-			}
-			if topographicMap[coord{c.y, c.x - 1}] == h+1 {
-				trailCountMap[c] += trailCountMap[coord{c.y, c.x - 1}]
-			}
-		}
-	}
-	total := 0
-	for _, c := range coordsByHeight[0] {
-		total += trailCountMap[c]
-	}
-	return total
+var adj = []coord{
+	{0, 1},
+	{1, 0},
+	{0, -1},
+	{-1, 0},
 }
 
-func countTrails(coordsByHeight [10][]coord, topographicMap map[coord]int) int {
+func countTrails(coordsByHeight [10][]coord, topographicMap map[coord]int) (int, int) {
 	reachablePeaks := make(map[coord]utils.Set[coord], len(topographicMap))
+	uniqueTrailCounts := make(map[coord]int, len(topographicMap))
+
 	for _, c := range coordsByHeight[9] {
 		reachablePeaks[c] = utils.Set[coord]{c: {}}
+		uniqueTrailCounts[c] = 1
 	}
 	for h := 8; h >= 0; h-- {
 		for _, c := range coordsByHeight[h] {
 			reachablePeaks[c] = make(utils.Set[coord])
-			if topographicMap[coord{c.y + 1, c.x}] == h+1 {
-				reachablePeaks[c].UnionUpdate(reachablePeaks[coord{c.y + 1, c.x}])
-			}
-			if topographicMap[coord{c.y - 1, c.x}] == h+1 {
-				reachablePeaks[c].UnionUpdate(reachablePeaks[coord{c.y - 1, c.x}])
-			}
-			if topographicMap[coord{c.y, c.x + 1}] == h+1 {
-				reachablePeaks[c].UnionUpdate(reachablePeaks[coord{c.y, c.x + 1}])
-			}
-			if topographicMap[coord{c.y, c.x - 1}] == h+1 {
-				reachablePeaks[c].UnionUpdate(reachablePeaks[coord{c.y, c.x - 1}])
+			for _, d := range adj {
+				neighbour := coord{c.y + d.y, c.x + d.x}
+				if topographicMap[neighbour] == h+1 {
+					reachablePeaks[c].UnionUpdate(reachablePeaks[neighbour])
+					uniqueTrailCounts[c] += uniqueTrailCounts[neighbour]
+				}
 			}
 		}
 	}
-	total := 0
+
+	var total, uniqueTotal int
 	for _, c := range coordsByHeight[0] {
 		total += len(reachablePeaks[c])
+		uniqueTotal += uniqueTrailCounts[c]
 	}
-	return total
+	return total, uniqueTotal
 }
