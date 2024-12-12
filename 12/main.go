@@ -12,7 +12,7 @@ func main() {
 		panic(err)
 	}
 
-	grid := parseMap(mapData)
+	grid := utils.GridFromBytes(mapData)
 	regions := findRegions(grid)
 	areas, perimeters, sideCounts := computeStats(grid, regions)
 
@@ -25,66 +25,38 @@ func main() {
 	fmt.Println(cost2)
 }
 
-func parseMap(data []byte) [][]byte {
-	grid := make([][]byte, 0)
-	var row []byte
-	for _, b := range data {
-		if b == '\n' {
-			grid = append(grid, row)
-			row = nil
-		} else {
-			row = append(row, b)
-		}
-	}
-	if row != nil {
-		grid = append(grid, row)
-	}
-	return grid
-}
-
-type coord struct {
-	y, x int
-}
-
 type region struct {
-	plots           []coord
-	horizontalEdges map[int][]int // y -> [x1, x2, ...], with x values inverted for north-facing edges
-	verticalEdges   map[int][]int // x -> [y1, y2, ...], with x values inverted for west-facing edges
-	char            byte
+	plots []utils.Coord
+	edges map[edgeKey][]int
+	name  byte
 }
 
-func findRegions(grid [][]byte) []region {
-	inspected := make(utils.Set[coord], len(grid)*len(grid[0]))
-	var inspectionStack *utils.Stack[coord]
+type edgeKey struct {
+	direction utils.Coord
+	edgeIndex int // X index for vertical edge, Y index for horiziontal
+}
+
+func findRegions(grid utils.Grid) []region {
+	seen := make(utils.Set[utils.Coord], grid.Length*grid.Width)
+	coordStack := utils.NewStack[utils.Coord]()
 	var regions []region
-	var currentRegion region
-	var p coord
-	for y, row := range grid {
+	for y, row := range grid.Values {
 		for x, c := range row {
-			if inspected.Contains(coord{y, x}) {
+			coord := utils.Coord{Y: y, X: x}
+			if seen.Contains(coord) {
 				continue
 			}
-			currentRegion = region{nil, make(map[int][]int), make(map[int][]int), c}
-			inspectionStack = utils.NewStack[coord]()
-			inspectionStack.Add(coord{y, x})
-			for !inspectionStack.IsEmpty() {
-				p = inspectionStack.Pop()
-				if inspected.Contains(p) {
-					continue
-				}
-				currentRegion.plots = append(currentRegion.plots, p)
-				inspected.Add(p)
-				if p.x > 0 && grid[p.y][p.x-1] == c {
-					inspectionStack.Add(coord{p.y, p.x - 1})
-				}
-				if p.x < len(row)-1 && grid[p.y][p.x+1] == c {
-					inspectionStack.Add(coord{p.y, p.x + 1})
-				}
-				if p.y > 0 && grid[p.y-1][p.x] == c {
-					inspectionStack.Add(coord{p.y - 1, p.x})
-				}
-				if p.y < len(grid)-1 && grid[p.y+1][p.x] == c {
-					inspectionStack.Add(coord{p.y + 1, p.x})
+			currentRegion := region{[]utils.Coord{coord}, make(map[edgeKey][]int), c}
+			coordStack.Add(coord)
+			seen.Add(coord)
+			for !coordStack.IsEmpty() {
+				p := coordStack.Pop()
+				for _, d := range utils.Directions {
+					if adj := utils.AddCoords(p, d); !seen.Contains(adj) && grid.GetEntry(adj) == c {
+						coordStack.Add(adj)
+						seen.Add(adj)
+						currentRegion.plots = append(currentRegion.plots, adj)
+					}
 				}
 			}
 			regions = append(regions, currentRegion)
@@ -93,45 +65,28 @@ func findRegions(grid [][]byte) []region {
 	return regions
 }
 
-func computeStats(grid [][]byte, regions []region) ([]int, []int, []int) {
+func computeStats(grid utils.Grid, regions []region) ([]int, []int, []int) {
 	areas := make([]int, len(regions))
 	perimeters := make([]int, len(regions))
 	sideCounts := make([]int, len(regions))
 	for i, region := range regions {
 		areas[i] = len(region.plots)
 		for _, plot := range region.plots {
-			if plot.x == 0 || grid[plot.y][plot.x-1] != region.char {
-				region.verticalEdges[plot.x] = append(region.verticalEdges[plot.x], -plot.y-1)
-				perimeters[i]++
-			}
-			if plot.x == len(grid[0])-1 || grid[plot.y][plot.x+1] != region.char {
-				region.verticalEdges[plot.x+1] = append(region.verticalEdges[plot.x+1], plot.y)
-				perimeters[i]++
-			}
-			if plot.y == 0 || grid[plot.y-1][plot.x] != region.char {
-				region.horizontalEdges[plot.y] = append(region.horizontalEdges[plot.y], -plot.x-1)
-				perimeters[i]++
-			}
-			if plot.y == len(grid)-1 || grid[plot.y+1][plot.x] != region.char {
-				region.horizontalEdges[plot.y+1] = append(region.horizontalEdges[plot.y+1], plot.x)
-				perimeters[i]++
-			}
-		}
-		for _, edges := range region.horizontalEdges {
-			edgeSet := utils.SetFromValues(edges...)
-			var prevEdge bool
-			for x := -len(grid[0]); x <= len(grid[0])+1; x++ {
-				hasEdge := edgeSet.Contains(x)
-				if prevEdge && !hasEdge {
-					sideCounts[i]++
+			for _, d := range utils.Directions {
+				if adj := utils.AddCoords(plot, d); grid.GetEntry(adj) != region.name {
+					constantCoord := plot.X*utils.Abs(d.Y) + plot.Y*utils.Abs(d.X)
+					edgeIndex := plot.X*utils.Abs(d.X) + plot.Y*utils.Abs(d.Y) +
+						utils.Max(d.X+d.Y, 0) // for positive diff, index is plot index plus one
+					key := edgeKey{direction: d, edgeIndex: edgeIndex}
+					region.edges[key] = append(region.edges[key], constantCoord)
 				}
-				prevEdge = hasEdge
 			}
 		}
-		for _, edges := range region.verticalEdges {
+		for _, edges := range region.edges {
+			perimeters[i] += len(edges)
 			edgeSet := utils.SetFromValues(edges...)
 			var prevEdge bool
-			for y := -len(grid); y <= len(grid)+1; y++ {
+			for y := utils.Min(edges...); y <= utils.Max(edges...)+1; y++ {
 				hasEdge := edgeSet.Contains(y)
 				if prevEdge && !hasEdge {
 					sideCounts[i]++
