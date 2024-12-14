@@ -1,8 +1,8 @@
 ```sh
-$ go run 1/main.go 1/data.txt
+$ go run ./01 01/data.txt
 1970720
 17191599
-$ python3 2/main.py 2/data.txt
+$ python3 02/main.py 02/data.txt
 379
 430
 ```
