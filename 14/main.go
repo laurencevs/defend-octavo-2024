@@ -13,24 +13,24 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	robots, g, err := parseData(string(data), os.Args[3], os.Args[4])
+	g, err := parseData(string(data), os.Args[3], os.Args[4])
 	if err != nil {
 		panic(err)
 	}
 
-	g.moveRobots(robots, 100)
-	fmt.Println(g.computeSafetyFactor(robots))
+	g.moveRobots(100)
+	fmt.Println(g.computeSafetyFactor())
 
-	g.moveRobots(robots, 7038)
-	err = os.WriteFile(os.Args[2], g.printRobots(robots), 0666)
+	g.moveRobots(7038)
+	err = os.WriteFile(os.Args[2], g.printRobots(), 0666)
 	if err != nil {
 		panic(err)
 	}
 }
 
 type grid struct {
-	h, w int
+	h, w   int
+	robots []robot
 }
 
 type robot struct {
@@ -38,9 +38,9 @@ type robot struct {
 	vx, vy int
 }
 
-func (g grid) printRobots(robots []robot) []byte {
-	robotPositions := make(map[utils.Coord]int, len(robots))
-	for _, r := range robots {
+func (g grid) printRobots() []byte {
+	robotPositions := make(map[utils.Coord]int, len(g.robots))
+	for _, r := range g.robots {
 		robotPositions[utils.Coord{Y: r.py, X: r.px}]++
 	}
 	var output []byte
@@ -63,9 +63,9 @@ func (g grid) printRobots(robots []robot) []byte {
 	return output
 }
 
-func (g grid) computeSafetyFactor(robots []robot) int {
+func (g grid) computeSafetyFactor() int {
 	var c [4]int
-	for _, r := range robots {
+	for _, r := range g.robots {
 		if r.px == g.w/2 || r.py == g.h/2 {
 			continue
 		}
@@ -81,34 +81,33 @@ func (g grid) computeSafetyFactor(robots []robot) int {
 	return c[0] * c[1] * c[2] * c[3]
 }
 
-func (g grid) moveRobots(robots []robot, t int) {
-	for i, r := range robots {
-		robots[i].px += t * r.vx
-		robots[i].px = (robots[i].px%g.w + g.w) % g.w
-		robots[i].py += t * r.vy
-		robots[i].py = (robots[i].py%g.h + g.h) % g.h
+func (g *grid) moveRobots(t int) {
+	for i, r := range g.robots {
+		g.robots[i].px += t * r.vx
+		g.robots[i].px = (g.robots[i].px%g.w + g.w) % g.w
+		g.robots[i].py += t * r.vy
+		g.robots[i].py = (g.robots[i].py%g.h + g.h) % g.h
 	}
 }
 
-func parseData(data, gridWidth, gridHeight string) ([]robot, grid, error) {
-	var robots []robot
+func parseData(data, gridWidth, gridHeight string) (*grid, error) {
+	var g grid
 	var r robot
 	var err error
 	for _, line := range strings.Split(data, "\n") {
 		_, err = fmt.Fscanf(strings.NewReader(line), "p=%d,%d v=%d,%d", &r.px, &r.py, &r.vx, &r.vy)
 		if err != nil {
-			return nil, grid{}, err
+			return nil, err
 		}
-		robots = append(robots, r)
+		g.robots = append(g.robots, r)
 	}
-	var g grid
 	g.h, err = strconv.Atoi(gridHeight)
 	if err != nil {
-		return nil, grid{}, err
+		return nil, err
 	}
 	g.w, err = strconv.Atoi(gridWidth)
 	if err != nil {
-		return nil, grid{}, err
+		return nil, err
 	}
-	return robots, g, nil
+	return &g, nil
 }
